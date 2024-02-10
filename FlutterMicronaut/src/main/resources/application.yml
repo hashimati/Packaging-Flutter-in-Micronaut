@@ -1,0 +1,9 @@
+micronaut.application.name: fluttermicronaut
+---
+micronaut:
+  router:
+    static-resources:
+      '*':
+        paths:
+          - "classpath:static"
+        enabled: true

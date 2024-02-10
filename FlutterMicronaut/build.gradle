@@ -1,0 +1,138 @@
+plugins {
+    id("com.github.johnrengelman.shadow") version "8.1.1"
+    id("io.micronaut.application") version "4.2.1"
+    id("io.micronaut.aot") version "4.2.1"
+}
+
+version = "0.1"
+group = "io.hashimati"
+
+repositories {
+    mavenCentral()
+}
+
+dependencies {
+    annotationProcessor("io.micronaut:micronaut-http-validation")
+    annotationProcessor("io.micronaut.serde:micronaut-serde-processor")
+    implementation("io.micrometer:context-propagation")
+    implementation("io.micronaut.reactor:micronaut-reactor")
+    implementation("io.micronaut.serde:micronaut-serde-jackson")
+    implementation("io.micronaut.views:micronaut-views-fieldset")
+    implementation("io.micronaut.views:micronaut-views-thymeleaf")
+    compileOnly("io.micronaut:micronaut-http-client")
+    runtimeOnly("ch.qos.logback:logback-classic")
+    testImplementation("io.micronaut:micronaut-http-client")
+    runtimeOnly("org.yaml:snakeyaml")
+}
+
+
+application {
+    mainClass.set("io.hashimati.Application")
+}
+java {
+    sourceCompatibility = JavaVersion.toVersion("17")
+    targetCompatibility = JavaVersion.toVersion("17")
+}
+
+
+graalvmNative.toolchainDetection = false
+micronaut {
+    runtime("netty")
+    testRuntime("junit5")
+    processing {
+        incremental(true)
+        annotations("io.hashimati.*")
+    }
+    aot {
+        // Please review carefully the optimizations enabled below
+        // Check https://micronaut-projects.github.io/micronaut-aot/latest/guide/ for more details
+        optimizeServiceLoading = false
+        convertYamlToJava = false
+        precomputeOperations = true
+        cacheEnvironment = true
+        optimizeClassLoading = true
+        deduceEnvironment = true
+        optimizeNetty = true
+    }
+}
+
+tasks.register("flutterTask", flutterTask)
+
+
+abstract class flutterTask extends DefaultTask {
+    @Input
+    abstract Property<String> getWorkingDir()
+    flutterTask() {
+        // set working dir to project root
+        workingDir.convention(project.projectDir.absolutePath+"/src/main/webapp".replace("/", File.separator))
+    }
+
+    def printProcesssOutput(process) {
+        process.inputStream.eachLine { line ->
+            println line
+        }
+        process.errorStream.eachLine { line ->
+            println line
+        }
+    }
+    @TaskAction
+    def buildNpm() {
+        //  println "Greeting: ${greeting.get()}"
+        println "Working Dir: ${workingDir.get()}"
+        //get the operating system
+        def os = System.getProperty("os.name").toLowerCase();
+        println "OS: ${os}"
+
+        //create the assets folder if it does not exist
+        File staticFolder = new File(project.projectDir.absolutePath + "/src/main/resources/static".replace("/", File.separator));
+        if(!staticFolder.exists()) {
+            staticFolder.mkdirs();
+        }
+
+        //create the views folder if it does not exist
+        File views = new File(project.projectDir.absolutePath + "/src/main/resources/views".replace("/", File.separator));
+        if(!views.exists()) {
+            views.mkdirs();
+        }
+
+        if(os.contains("win")) {
+
+            ProcessBuilder flutterBuild = new ProcessBuilder("cmd", "/C", "flutter ", "build", "web").directory(new File(workingDir.get()));
+            Process flutterBuildProcess=  flutterBuild.start()
+
+            printProcesssOutput(flutterBuildProcess)
+            if(flutterBuildProcess.alive == true)
+            {
+                flutterBuildProcess.waitFor();
+
+            }
+
+            ProcessBuilder moveIndexBuilder = new ProcessBuilder("cmd.exe", "/c", "move", project.projectDir.absolutePath + "/src/main/webapp/build/web/index.html".replace("/", File.separator), project.projectDir.absolutePath + "/src/main/resources/views".replace("/", File.separator));
+            printProcesssOutput(moveIndexBuilder.start());
+            ProcessBuilder moveAssetsBuilder = new ProcessBuilder("cmd.exe", "/c", "xcopy", "/S", project.projectDir.absolutePath + "/src/main/webapp/build/web".replace("/", File.separator), project.projectDir.absolutePath + "/src/main/resources/static".replace("/", File.separator));
+            printProcesssOutput(moveAssetsBuilder.start());
+                  }
+        else {
+
+    ProcessBuilder flutterBuild = new ProcessBuilder("flutter", "build", "web").directory(new File(workingDir.get()));
+                Process flutterBuildProcess=  flutterBuild.start()
+
+                printProcesssOutput(flutterBuildProcess)
+                if(flutterBuildProcess.alive == true)
+                {
+                 flutterBuildProcess.waitFor();
+
+                }
+
+                ProcessBuilder moveIndexBuilder = new ProcessBuilder("mv", project.projectDir.absolutePath + "/src/main/webapp/build/web/index.html".replace("/", File.separator), project.projectDir.absolutePath + "/src/main/resources/views".replace("/", File.separator));
+                printProcesssOutput(moveIndexBuilder.start());
+                ProcessBuilder moveAssetsBuilder = new ProcessBuilder("cp", "-r", project.projectDir.absolutePath + "/src/main/webapp/build/web".replace("/", File.separator), project.projectDir.absolutePath + "/src/main/resources/static".replace("/", File.separator));
+                printProcesssOutput(moveAssetsBuilder.start());
+
+        }
+
+
+    }
+}
+
+
